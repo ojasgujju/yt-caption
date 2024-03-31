@@ -1,12 +1,11 @@
 from flask import Flask, jsonify, request
-
+from youtube_transcript_api import YouTubeTranscriptApi
 # Dummy function TRANS.get_transcript
 def get_transcript(id, preserve_formatting=True):
     # Dummy data
-    return [
-        {'text': 'Hey there', 'start': 7.58, 'duration': 6.13},
-        {'text': 'how are you', 'start': 14.08, 'duration': 7.58}
-    ]
+    result = YouTubeTranscriptApi.get_transcript(id, preserve_formatting=True)
+
+    return result
 
 app = Flask(__name__)
 
