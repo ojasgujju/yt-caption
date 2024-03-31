@@ -1,60 +1,36 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from flask import Flask, render_template_string, jsonify
 from youtube_transcript_api import YouTubeTranscriptApi
-import urllib.parse
-import json
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
-# Dummy function TRANS.get_transcript
-def get_transcript(id, preserve_formatting=True):
-    # Dummy data
+app = Flask(__name__)
 
-    result = YouTubeTranscriptApi.get_transcript(id, preserve_formatting=True)
+# HTML template to display the results
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>YouTube Transcript API</title>
+</head>
+<body>
+    {% if transcript %}
+        <h2>Transcript for Video ID: {{ video_id }}</h2>
+        <pre>{{ transcript|safe }}</pre>
+    {% else %}
+        <p>Error: {{ error }}</p>
+    {% endif %}
+</body>
+</html>
+"""
 
-    return result
-
-class MyHTTPRequestHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        # Parse the URL
-        parsed_url = urllib.parse.urlparse(self.path)
-        
-        # Get the query parameters
-        query_params = urllib.parse.parse_qs(parsed_url.query)
-        
-        # Check if 'id' parameter exists
-        if 'id' in query_params:
-            # Extract the ID value
-            id_value = query_params['id'][0]
-            
-            # Call TRANS.get_transcript function to get the transcript
-            result = get_transcript(id_value, preserve_formatting=True)
-            
-            # Convert the transcript to HTML format
-            html_response = "<html><body><h1>Transcript for ID: {}</h1>".format(id_value)
-            for item in result:
-                html_response += "<p>{} (Start: {}, Duration: {})</p>".format(item['text'], item['start'], item['duration'])
-            html_response += "</body></html>"
-            
-            # Send the HTML response
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(bytes(html_response, "utf-8"))
-        else:
-            # If 'id' parameter is not found, send a 400 error response
-            self.send_response(400)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(bytes("Error: 'id' parameter not found in URL", "utf-8"))
-
-def run(server_class=HTTPServer, handler_class=MyHTTPRequestHandler, port=8000):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    print('Starting server...')
+@app.route('/<video_id>', methods=['GET'])
+def get_transcript(video_id):
     try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    httpd.server_close()
-    print('Server stopped.')
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        # Convert the transcript list to pretty JSON format
+        pretty_transcript = jsonify(transcript).json
+        return render_template_string(HTML_TEMPLATE, transcript=pretty_transcript, video_id=video_id)
+    except (TranscriptsDisabled, NoTranscriptFound) as e:
+        return render_template_string(HTML_TEMPLATE, error=str(e), video_id=video_id)
 
-if __name__ == "__main__":
-    run()
+if __name__ == '__main__':
+    app.run(debug=True)
